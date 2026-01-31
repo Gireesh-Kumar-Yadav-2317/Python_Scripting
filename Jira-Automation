@@ -1,0 +1,63 @@
+import structlog
+import os
+import asyncio
+
+from azure.identity.aio import ClientSecretCredential
+from msgraph.aio import GraphServiceClient, GraphRequestAdapter, AsyncHttpProvider
+from kioto_authentication_azure.azure_identity_authentication_provider import AzureIdentityAuthenticationProvider
+
+AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID")
+AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID")          
+AZURE_CLIENT_SECRET = os.getenv("AZURE_CLIENT_SECRET")
+
+USER_EMAIL_ID = os.getenv("USER_EMAIL_ID")
+
+LOOKBACK_MINUTES = int(os.getenv("LOOKBACK_MINUTES", "60"))
+
+logger = structlog.get_logger()
+
+async def check_new_assigned_tickets(client):
+    query = {
+        "$top" : 10,
+        "$filter": f"assignedTo eq '{USER_EMAIL_ID}' and createdDateTime ge { (asyncio.get_event_loop().time() - LOOKBACK_MINUTES * 60).isoformat() }",
+
+        "$select": "id,title,createdDateTime,assignedTo"
+    }
+    tickets = await client.users[USER_EMAIL_ID].messages.get(query_parameters = query)
+
+
+    for tickets in tickets.values:
+
+        ticket_log = {
+            "ticket_id": ticket.id,
+            "title": ticket.title,
+            "status": ticket.status,
+            "assigned_to": USER_EMAIL_ID,
+            "createdDateTime": ticket.created_date_time.isoformat()
+
+        }
+        logger.info("Newly assigned ticket", ticket = ticket_log)
+
+
+async def main():
+    credits = ClientSecretCredential(
+        tenant_id = AZURE_TENANT_ID,
+        client_id = AZURE_CLIENT_ID,
+        client_secret = AZURE_CLIENT_SECRET
+
+
+    )
+    scopes = ["https://graph.microsoft.com/.default"]
+
+    auth_provider = AzureIdentityAuthenticationProvider(credits = credits , scope = scopes)
+    adapter = GraphRequestAdapter(auth_provider)
+    http_provider = AsyncHttpProvider()
+    client = GraphServiceClient(adapter, transport = http_provider)
+    try :
+        await check_new_assigned_tickets(client)
+    finally:
+        await credits.close()
+        await http_provider.close()
+if __name__ == "__main__":
+    asyncio.run(main())
+
