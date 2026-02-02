@@ -24,7 +24,7 @@ def list_dummy_files():
         {"id": "3", "name": "report.docx", "path": "/Reports/report.docx", "last_modified": now},
     ]
 
-async def simulate_multiple_dcws(files, delay=120):
+async def simulate_multiple_dcws(files, delay=5):
     log.info("dcw_simulation_started", dcw_count=3, delay_seconds=delay)
     await asyncio.sleep(delay)
 
@@ -38,7 +38,7 @@ async def simulate_multiple_dcws(files, delay=120):
     log.info("dcw_simulation_completed")
 
 
-async def verify_multiple_dcws(wait_seconds=120):
+async def verify_multiple_dcws(wait_seconds=65):
     log.info("dcw_verification_started", mode="MULTI_DCW")
 
     files = list_dummy_files()
